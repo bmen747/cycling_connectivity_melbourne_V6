@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Bicycle Connectivity Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+    #map-overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: "DIN Pro", "Arial", sans-serif;
+      color: black;
+      z-index: 1;
+      max-width: 220px;
+    }
+
+    #map-title {
+      font-size: 22px;
+      margin: 0 0 10px 0;
+      font-weight: bold;
+    }
+
+    #legend {
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    .gradient-bar {
+      height: 18px;
+      width: 200px;
+      border: 1px solid #999;
+      margin-bottom: 4px;
+    }
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      width: 200px;
+      font-size: 12px;
+    }
+
+    #style-switcher {
+      margin-top: 12px;
+      font-size: 14px;
+    }
+    #style-switcher strong {
+      display: block;
+      margin-top: 6px;
+    }
+    #style-switcher label {
+      display: block;
+      margin-bottom: 4px;
+      cursor: pointer;
+      font-weight: normal;
+    }
+    /* Bold only Link Betweenness heading */
+    #style-switcher label.link-betweenness-label {
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    #betweenness-suboptions {
+      margin-left: 12px;
+      margin-top: 6px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="map-overlay">
+  <div id="map-title">Cycling Connectivity Melbourne</div>
+
+  <!-- Legend -->
+  <div id="legend"></div>
+
+  <!-- Style switcher -->
+  <div id="style-switcher">
+    <strong>Choose Layer:</strong>
+    <label><input type="radio" name="layer-group" id="choropleth" checked> SA1 Score (Combined)</label>
+    <label><input type="radio" name="layer-group" id="linkscore-alt"> Link score</label>
+    <label class="link-betweenness-label"><input type="radio" name="layer-group" id="link-betweenness"> Link Centrality</label>
+
+    <div id="betweenness-suboptions">
+      <label><input type="radio" name="betweenness-sub" id="unfactored"> Unfactored Score</label>
+      <label><input type="radio" name="betweenness-sub" id="factored" checked> Factored Score</label>
+      <label><input type="radio" name="betweenness-sub" id="difference"> Difference</label>
+    </div>
+  </div>
+</div>
+
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoiYm1lbiIsImEiOiJjbWZtMGQwc28wMmJlMnFvZWNjaXY5eW03In0.Su60i1Xyh3ejDhmiJf2NCg';
+
+  const styles = {
+    choropleth: 'mapbox://styles/bmen/cmfb3otgq004001ss00ri10ue',
+    'linkscore-alt': 'mapbox://styles/bmen/cmfb2vrn5004901su3rwl75xl',
+
+    // Link Betweenness sub-styles
+    unfactored: 'mapbox://styles/bmen/cmfl094g4003601sjb3cw8axe',
+    factored: 'mapbox://styles/bmen/cmfl1v5qj006s01sr4g7uhiu9',
+    difference: 'mapbox://styles/bmen/cmfl1xxvg006t01srbsulf23b'
+  };
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: styles.choropleth, // default
+    center: [144.9631, -37.8136],
+    zoom: 12
+  });
+
+  // Controls
+  map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right');
+  map.addControl(new mapboxgl.ScaleControl({ maxWidth: 200, unit: 'metric' }), 'bottom-left');
+
+  // Custom static legends
+  const customLegends = {
+    "choropleth": `
+      <div id="legend-title">SA1 Score</div>
+      <div class="gradient-bar" style="background: linear-gradient(to right, rgb(0,194,0), rgb(255,243,173), rgb(227,13,0));"></div>
+      <div class="legend-labels"><span>30</span><span>39</span><span>100</span></div>
+    `,
+    "linkscore-alt": `
+      <div id="legend-title">Link Score (% of Total)</div>
+      <div class="gradient-bar" style="background: linear-gradient(to right, rgb(255,13,0), #ffffb3, rgb(0,194,0));"></div>
+      <div class="legend-labels"><span>0</span><span>50</span><span>100</span></div>
+    `,
+    "unfactored": `
+      <div id="legend-title">Unfactored Score</div>
+      <div class="gradient-bar" style="background: linear-gradient(to right, rgb(255,13,0), #ffffb3, rgb(0,194,0));"></div>
+      <div class="legend-labels"><span>0</span><span>800,000</span><span>1,600,000</span></div>
+    `,
+    "factored": `
+      <div id="legend-title">Factored Score</div>
+      <div class="gradient-bar" style="background: linear-gradient(to right, rgb(255,13,0), #ffffb3, rgb(0,194,0));"></div>
+      <div class="legend-labels"><span>0</span><span>800,000</span><span>1,600,000</span></div>
+    `,
+    "difference": `
+      <div id="legend-title">Difference (Unfactored - Factored)</div>
+      <div class="gradient-bar" style="background: linear-gradient(to right, rgb(0,194,0), #ffffb3, rgb(255,13,0));"></div>
+      <div class="legend-labels"><span>-0.032</span><span>0</span><span>0.032</span></div>
+    `
+  };
+
+  // Legend renderer
+  function renderLegend(styleId) {
+    const legendBox = document.getElementById("legend");
+    legendBox.innerHTML = customLegends[styleId] || "<div>No legend available</div>";
+  }
+
+  // Handle top-level selection
+  document.querySelectorAll("input[name='layer-group']").forEach(radio => {
+    radio.addEventListener("change", () => {
+      const id = radio.id;
+      const subPanel = document.getElementById("betweenness-suboptions");
+
+      if (id === "link-betweenness") {
+        subPanel.style.display = "block";
+        const subId = document.querySelector("input[name='betweenness-sub']:checked").id;
+        map.setStyle(styles[subId]);
+        map.once("styledata", () => renderLegend(subId));
+      } else {
+        subPanel.style.display = "none";
+        map.setStyle(styles[id]);
+        map.once("styledata", () => renderLegend(id));
+      }
+    });
+  });
+
+  // Handle sub-options under Link Betweenness
+  document.querySelectorAll("input[name='betweenness-sub']").forEach(radio => {
+    radio.addEventListener("change", () => {
+      if (document.getElementById("link-betweenness").checked) {
+        const subId = radio.id;
+        map.setStyle(styles[subId]);
+        map.once("styledata", () => renderLegend(subId));
+      }
+    });
+  });
+
+  // Initial legend
+  map.once("styledata", () => {
+    renderLegend("choropleth");
+  });
+</script>
+
+</body>
+</html>
